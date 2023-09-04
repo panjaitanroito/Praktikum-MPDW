@@ -2,7 +2,8 @@
 title: "Pemulusan"
 author: "Megawati Roito Panjaitan"
 date: "2023-09-02"
-output: html_document: default
+output: 
+        html_document: default
         pdf_document: default
         word_document: default
 ---
