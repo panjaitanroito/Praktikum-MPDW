@@ -27,7 +27,7 @@ library(rio)
 data<-import("https://raw.githubusercontent.com/panjaitanroito/Praktikum-MPDW/main/Data/data1.csv")
 ```
 Deskripsi data:
-Dataset berisi perkiraan penjualan retail dan jasa makanan bulanan di AS menurut jenis usaha dari tahun 2000-2019.Data perkiraan ditampilkan dalam satuan juta dolar.
+Dataset berisi perkiraan penjualan retail dan jasa makanan bulanan di AS menurut jenis usaha dari tahun 2000-2019. Data perkiraan ditampilkan di kolom "Value" dalam satuan juta dolar.
 
 ## Eksplorasi data
 
