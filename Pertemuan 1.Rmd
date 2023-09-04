@@ -40,7 +40,6 @@ summary(data.ts)
 ```
 
 ## Membuat plot semua data
-
 ```{r}
 ts.plot(data.ts, xlab="Time Period ", ylab="Sales", 
         main = "Plot Retail Sales")
