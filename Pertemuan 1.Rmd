@@ -1,0 +1,213 @@
+---
+title: "Pemulusan"
+author: "Megawati Roito Panjaitan"
+date: "2023-09-02"
+output: html_document: default
+        pdf_document: default
+        word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Library
+
+```{r}
+library(forecast)
+library(graphics)
+library(TTR)
+library(TSA)
+library(rio)
+```
+
+## Impor data
+
+```{r}
+data<-import("https://raw.githubusercontent.com/panjaitanroito/Praktikum-MPDW/main/Data/data1.csv")
+```
+
+## Eksplorasi data
+
+```{r}
+View(data)
+str(data)
+dim(data)
+```
+```{r}
+data.ts <- ts(data$Value)
+summary(data.ts)
+```
+
+## Membuat plot semua data
+
+```{r}
+ts.plot(data.ts, xlab="Time Period ", ylab="Sales", 
+        main = "Plot Retail Sales")
+points(data.ts)
+```
+
+## Membagi data latih dan data uji
+
+Data uji: 80% Data latih: 20%
+```{r}
+training_ma <- data[1:192,]
+testing_ma <- data[193:240,]
+train_ma.ts <- ts(training_ma$Value)
+test_ma.ts <- ts(testing_ma$Value)
+```
+
+## Eksplorasi data
+
+```{r}
+#eksplorasi keseluruhan data
+plot(data.ts, col="red",main="Plot semua data")
+points(data.ts)
+
+#eksplorasi data latih
+plot(train_ma.ts, col="blue",main="Plot data latih")
+points(train_ma.ts)
+
+#eksplorasi data uji
+plot(test_ma.ts, col="purple",main="Plot data uji")
+points(test_ma.ts)
+```
+
+```{r}
+#Eksplorasi dengan GGPLOT
+library(ggplot2)
+ggplot() + 
+  geom_line(data = training_ma, aes(x = Period, y = Value, col = "Data Latih")) +
+  geom_line(data = testing_ma, aes(x = Period, y = Value, col = "Data Uji")) +
+  labs(x = "Periode Waktu", y = "Sales", color = "Legend") +
+  scale_colour_manual(name="Keterangan:", breaks = c("Data Latih", "Data Uji"),
+                      values = c("red", "purple")) + 
+  theme_bw() + theme(legend.position = "bottom",
+                     plot.caption = element_text(hjust=0.5, size=12))
+```
+
+# Pemulusan
+
+## Single Moving Average (SMA)
+
+```{r}
+data.sma<-SMA(train_ma.ts, n=5)
+data.sma
+```
+
+Forecast 1 periode ke depan:
+
+```{r}
+data.ramal<-c(NA,data.sma)
+data.ramal
+```
+
+Forecast 48 periode ke depan:
+
+```{r}
+data.gab<-cbind(aktual=c(train_ma.ts,rep(NA,48)),pemulusan=c(data.sma,rep(NA,48)),ramalan=c(data.ramal,rep(data.ramal[length(data.ramal)],47)))
+data.gab
+```
+
+### Visualisasi hasil pemulusan SMA
+
+```{r}
+ts.plot(data.ts, xlab="Time Period ", ylab="Sales", main= "SMA N=5 Data Retail Sales")
+points(data.ts)
+lines(data.gab[,2],col="yellow",lwd=2)
+lines(data.gab[,3],col="red",lwd=2)
+legend("topleft",c("data aktual","data pemulusan","data peramalan"), lty=8, col=c("black","yellow","red"), cex=0.5)
+```
+
+### I. Menghitung nilai keakuratan data latih
+
+```{r}
+error_train.sma = train_ma.ts-data.ramal[1:length(train_ma.ts)]
+SSE_train.sma = sum(error_train.sma[6:length(train_ma.ts)]^2)
+MSE_train.sma = mean(error_train.sma[6:length(train_ma.ts)]^2)
+MAPE_train.sma = mean(abs((error_train.sma[6:length(train_ma.ts)]/train_ma.ts[6:length(train_ma.ts)])*100))
+
+akurasi_train.sma <- matrix(c(SSE_train.sma, MSE_train.sma, MAPE_train.sma))
+row.names(akurasi_train.sma)<- c("SSE", "MSE", "MAPE")
+colnames(akurasi_train.sma) <- c("Akurasi m = 5")
+akurasi_train.sma
+```
+Dalam hal ini nilai MAPE data latih pada metode pemulusan SMA kurang dari 2%, nilai ini dapat dikategorikan sebagai nilai akurasi yang sangat baik.
+
+### II. Menghitung nilai keakuratan data uji
+
+```{r}
+error_test.sma = test_ma.ts-data.gab[193:240,3]
+SSE_test.sma = sum(error_test.sma^2)
+MSE_test.sma = mean(error_test.sma^2)
+MAPE_test.sma = mean(abs((error_test.sma/test_ma.ts*100)))
+
+akurasi_test.sma <- matrix(c(SSE_test.sma, MSE_test.sma, MAPE_test.sma))
+row.names(akurasi_test.sma)<- c("SSE", "MSE", "MAPE")
+colnames(akurasi_test.sma) <- c("Akurasi m = 5")
+akurasi_test.sma
+```
+Perhitungan akurasi menggunakan data uji menghasilkan nilai MAPE yang kurang dari 10% sehingga nilai akurasi ini dapat dikategorikan sebagai sangat baik.
+
+## Double Moving Average (DMA)
+
+```{r}
+dma <- SMA(data.sma, n = 5)
+At <- 2*data.sma - dma
+Bt <- 2/(5-1)*(data.sma - dma)
+data.dma<- At+Bt
+data.ramal2<- c(NA, data.dma)
+
+t = 1:48
+f = c()
+
+for (i in t) {
+  f[i] = At[length(At)] + Bt[length(Bt)]*(i)
+}
+
+data.gab2 <- cbind(aktual = c(train_ma.ts,rep(NA,48)), pemulusan1 = c(data.sma,rep(NA,48)),pemulusan2 = c(data.dma, rep(NA,48)),At = c(At, rep(NA,48)), Bt = c(Bt,rep(NA,48)),ramalan = c(data.ramal2, f[-1]))
+data.gab2
+
+```
+
+### Visualisasi hasil pemulusan DMA
+```{r}
+ts.plot(data.ts, xlab="Time Period ", ylab="Sales", main= "DMA N=5 Data Retail Sales")
+points(data.ts)
+lines(data.gab2[,3],col="green",lwd=2)
+lines(data.gab2[,6],col="red",lwd=2)
+legend("topleft",c("data aktual","data pemulusan","data peramalan"), lty=8, col=c("black","green","red"), cex=0.8)
+```
+
+### I. Menghitung nilai keakuratan data latih
+
+```{r}
+error_train.dma = train_ma.ts-data.ramal2[1:length(train_ma.ts)]
+SSE_train.dma = sum(error_train.dma[10:length(train_ma.ts)]^2)
+MSE_train.dma = mean(error_train.dma[10:length(train_ma.ts)]^2)
+MAPE_train.dma = mean(abs((error_train.dma[10:length(train_ma.ts)]/train_ma.ts[10:length(train_ma.ts)])*100))
+
+akurasi_train.dma <- matrix(c(SSE_train.dma, MSE_train.dma, MAPE_train.dma))
+row.names(akurasi_train.dma)<- c("SSE", "MSE", "MAPE")
+colnames(akurasi_train.dma) <- c("Akurasi m = 5")
+akurasi_train.dma
+```
+Perhitungan akurasi pada data latih menggunakan nilai MAPE menghasilkan nilai MAPE yang kurang dari 2% sehingga dikategorikan sangat baik.
+
+### II. Menghitung nilai keakuratan data uji
+
+```{r}
+error_test.dma = test_ma.ts-data.gab2[193:240,6]
+SSE_test.dma = sum(error_test.dma^2)
+MSE_test.dma = mean(error_test.dma^2)
+MAPE_test.dma = mean(abs((error_test.dma/test_ma.ts*100)))
+
+akurasi_test.dma <- matrix(c(SSE_test.dma, MSE_test.dma, MAPE_test.dma))
+row.names(akurasi_test.dma)<- c("SSE", "MSE", "MAPE")
+colnames(akurasi_test.dma) <- c("Akurasi m = 5")
+akurasi_test.dma
+```
+Perhitungan akurasi menggunakan data uji menghasilkan nilai MAPE yang kurang dari 10% sehingga nilai akurasi ini dapat dikategorikan sebagai sangat baik.
+
+### Perbandingan pemulusan SMA dan DMA
+Jika dibandingkan antara metode SMA dan DMA, data latih dan data uji pada metode DMA lebih baik digunakan dibandingkan metode SMA pada data berpola trend.
