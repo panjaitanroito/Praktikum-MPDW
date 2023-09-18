@@ -1,1 +1,173 @@
+---
+title: "Pertemuan 3"
+author: "Megawati Roito Panjaitan"
+date: "2023-09-18"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Library
+```{r}
+library(dLagM)
+library(dynlm)
+library(MLmetrics)
+library(lmtest)
+library(car)
+library(rio)
+```
+
+## Impor data
+```{r}
+data <- import("https://raw.githubusercontent.com/panjaitanroito/Praktikum-MPDW/main/Pertemuan%203/data_motor.csv")
+View(data)
+Yt <- data$ms
+Xt <- data$pm
+data <- data.frame(Yt,Xt)
+str(data)
+data
+```
+
+## Pembagian data
+```{r}
+#Split data
+train<-data[1:160,]
+test<-data[161:200,]
+```
+```{r}
+#Mengubah data menjadi format time series
+train.ts<-ts(train)
+test.ts<-ts(test)
+data.ts<-ts(data$Yt)
+```
+
+## 1. Model Koyck
+### Pemodelan
+```{r}
+model.koyck <- koyckDlm(x = train$Xt, y = train$Yt)
+summary(model.koyck)
+AIC(model.koyck)
+BIC(model.koyck)
+```
+Dari hasil tersebut, didapat bahwa peubah $x_t$ dan $y_{t-1}$ memiliki nilai $P-Value<0.05$. Hal ini menunjukkan bahwa peubah $x_t$ dan $y_{t-1}$ berpengaruh signifikan terhadap $y$. Adapun model keseluruhannya adalah sebagai berikut
+$$
+\hat{Y_t}=573.365594-19.946873X_t+0.995208Y_{t-1}
+$$
+### Peramalan dan Akurasi
+```{r}
+#Ramalan
+fore.koyck <- forecast(model = model.koyck, x=test$Xt, h=nrow(test))
+fore.koyck
+
+#akurasi data testing
+mape.koyck <- MAPE(fore.koyck$forecasts, test$Yt)
+
+#akurasi data training
+mape.koyck.train <- GoF(model.koyck)["MAPE"]
+
+c("MAPE Testing"=mape.koyck,"MAPE Training"=mape.koyck.train)
+```
+Berdasarkan output akurasi di atas terlihat bahwa nilai MAPE training jauh lebih besar dibandingkan dengan nilai MAPE testing, artinya nilai MAPE training dan testing memiliki perbedaan yang sangat signifikan. Dengan demikian, model koyck ini overfitted atau underfitted.
+
+## 2. Regression with distributed lag
+### Penentuan Lag Optimum
+```{r}
+finiteDLMauto(formula = Yt ~ Xt,
+              data = data.frame(train),
+              model.type = "dlm", error.type = "AIC",
+              trace = FALSE)
+```
+Berdasarkan output tersebut, lag optimum didapatkan ketika lag=10. Selanjutnya dilakukan pemodelan untuk lag=10
+
+### Pemodelan Lag Optimum (Lag=10)
+```{r}
+model.dlm2 <- dlm(x = train$Xt,
+                 y = train$Yt, q = 10)
+summary(model.dlm2)
+AIC(model.dlm2)
+BIC(model.dlm2)
+```
+
+### Peramalan dan Akurasi Lag Optimum (Lag=10)
+```{r}
+#Ramalan
+fore.dlm2 <- forecast(model = model.dlm2, x=test$Xt, h=nrow(test))
+fore.dlm2
+
+#akurasi data testing
+mape.dlm2 <- MAPE(fore.dlm2$forecasts, test$Yt)
+
+#akurasi data training
+mape.dlm.train2 <- GoF(model.dlm2)["MAPE"]
+
+c("MAPE Testing"=mape.dlm2,"MAPE Training"=mape.dlm.train2)
+```
+Berdasarkan output akurasi di atas terlihat bahwa nilai MAPE training jauh lebih besar dibandingkan dengan nilai MAPE testing, artinya nilai MAPE training dan testing memiliki perbedaan yang sangat signifikan. Dengan demikian, model Regression with distributed lag ini overfitted atau underfitted.
+
+## 3. Model Autoregressive
+### Penentuan Lag Optimum
+```{r}
+model.ardl.opt <- ardlBoundOrders(data = data.frame(data),ic = "AIC",formula = Yt ~ Xt)
+min_p=c()
+for(i in 1:8){
+  min_p[i]=min(model.ardl.opt$Stat.table[[i]])
+}
+q_opt=which(min_p==min(min_p, na.rm = TRUE))
+p_opt=which(model.ardl.opt$Stat.table[[q_opt]] == 
+              min(model.ardl.opt$Stat.table[[q_opt]], na.rm = TRUE))
+data.frame("q_optimum" = q_opt, "p_optimum" = p_opt, 
+           "AIC"=model.ardl.opt$min.Stat)
+```
+Dari tabel di atas, dapat terlihat bahwa nilai AIC terendah didapat ketika $p=15$ dan $q=3$, yaitu sebesar `1344.952`. Artinya, model autoregressive optimum didapat ketika $p=15$ dan $q=3$.
+Selanjutnya dapat dilakukan pemodelan dengan nilai $p$ dan $q$ optimum ke dalam proses pemodelan ardl
+
+### Pemodelan ardl
+```{r}
+model.ardl <- ardlDlm(x = train$Xt, y = train$Yt, p = 15 , q = 3)
+summary(model.ardl)
+AIC(model.ardl)
+BIC(model.ardl)
+```
+### Peramalan dan Akurasi
+```{r}
+#Ramalan
+fore.ardl <- forecast(model = model.ardl, x=test$Xt, h=nrow(test))
+fore.ardl
+
+#akurasi data testing
+mape.ardl <- MAPE(fore.ardl$forecasts, test$Yt)
+
+#akurasi data training
+mape.ardl.train <- GoF(model.ardl)["MAPE"]
+
+c("MAPE Testing"=mape.ardl,"MAPE Training"=mape.ardl.train)
+```
+
+Berdasaarkan akurasi di atasm terlihat bahwa nilai MAPE kedua tes jauh berbeda. Artinya, model regresi ardl ini overfitted atau underfitted.
+
+## Perbandingan Model
+### Akurasi
+```{r}
+akurasi <- matrix(c(mape.koyck, mape.dlm2, mape.ardl))
+row.names(akurasi) <- c("Koyck", "DLM", "Autoregressive")
+colnames(akurasi) <- c("MAPE")
+akurasi
+```
+Berdasarkan perbandingan nilai MAPE dari masing-masing model di atas, model yang paling optimum didapat pada model Autoregressive karena memiliki nilai MAPE terkecil.
+
+### Plot
+```{r}
+par(mfrow=c(1,1))
+plot(test$Xt, test$Yt, type="b", col="black")
+points(test$Xt,fore.koyck$forecasts,col="red")
+lines(test$Xt, fore.koyck$forecasts,col="red")
+points(test$Xt,fore.dlm2$forecasts,col="purple")
+lines(test$Xt,fore.dlm2$forecasts,col="purple")
+points(test$Xt,fore.ardl$forecasts,col="green")
+lines(test$Xt,fore.ardl$forecasts,col="green")
+legend("topleft",c("aktual", "koyck","DLM","autoregressive"), lty=1, col=c("black","red","purple","green"), cex=0.8)
+```
+Berdasarkan plot tersebut, terlihat bahwa plot yang paling mendekati aktualnya adalah model autoregressive, sehingga dapat disimpulkan bahwa model terbaik dalam hal ini adalah model autoregressive
 
