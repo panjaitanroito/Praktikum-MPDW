@@ -20,7 +20,7 @@ library(MASS)
 ## Impor Data
 
 ```{r}
-data <- rio::import("https://raw.githubusercontent.com/panjaitanroito/Praktikum-MPDW/main/Data/data1.csv")
+data <- rio::import("https://raw.githubusercontent.com/panjaitanroito/Praktikum-MPDW/main/Pertemuan%205/data1.csv")
 str(data)
 stas <-ts(data$Value)
 ```
