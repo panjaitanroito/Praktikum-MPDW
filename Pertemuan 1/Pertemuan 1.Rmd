@@ -51,7 +51,8 @@ points(data.ts)
 
 ## Membagi data latih dan data uji
 
-Data uji: 80% Data latih: 20%
+Data latih: 80%
+Data uji: 20%
 ```{r}
 training_ma <- data[1:192,]
 testing_ma <- data[193:240,]
